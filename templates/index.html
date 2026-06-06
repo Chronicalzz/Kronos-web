@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kronos Downloader</title>
+    
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='icon.ico') }}">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #050509; color: #ffffff; }
+        .panel { background-color: #101018; border-color: #202030; }
+        .grey-box { background-color: #1a1a1a; }
+        .accent-glow { text-shadow: 0 0 10px #c86bff; color: #c86bff; }
+        .btn-purple { background-color: #a020f0; border-color: #c86bff; }
+        .btn-purple:hover { background-color: #c86bff; }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen font-sans p-4">
+
+    <div class="panel border-2 rounded-2xl w-full max-w-2xl p-8 relative shadow-2xl">
+        
+        <div class="flex justify-between items-center mb-4">
+            <button onclick="toggleHelp(true)" class="grey-box text-[#c86bff] border border-[#c86bff] rounded-full w-8 h-8 font-bold flex items-center justify-center hover:bg-[#222] transition">?</button>
+            <div class="text-xs tracking-widest text-gray-500 font-mono uppercase">Kronos Web Engine v1.0</div>
+        </div>
+
+        <div class="flex flex-col items-center text-center mb-8">
+            <img src="{{ url_for('static', filename='icon.png') }}" alt="Kronos Logo" class="w-24 h-24 mb-3 drop-shadow-[0_0_15px_rgba(200,107,255,0.5)] select-none">
+            <h1 class="text-5xl font-extrabold tracking-wider accent-glow mb-2">KRONOS</h1>
+            <p class="text-sm font-semibold tracking-wide text-[#c86bff]">Insert link below to process file</p>
+        </div>
+
+        <div class="space-y-6">
+            <div class="flex gap-2">
+                <input type="text" id="urlInput" placeholder="Paste media link here..." class="grey-box border border-[#2a2a2a] text-[#c86bff] text-lg rounded-xl flex-1 px-4 py-3 outline-none focus:border-[#c86bff] transition">
+                <button onclick="pasteClipboard()" class="grey-box border border-[#2a2a2a] text-[#c86bff] px-4 rounded-xl text-xl hover:bg-[#252525] transition" title="Paste From Clipboard">📋</button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <button id="audioBtn" onclick="setFormat('audio')" class="grey-box border-2 border-[#c86bff] text-white py-4 rounded-xl font-bold tracking-wide text-lg transition">Audio (WAV)</button>
+                <button id="videoBtn" onclick="setFormat('video')" class="grey-box border-2 border-transparent text-white py-4 rounded-xl font-bold tracking-wide text-lg transition">Video (ProRes MOV)</button>
+            </div>
+
+            <button onclick="triggerDownload()" id="dlBtn" class="btn-purple border-2 text-white font-bold w-full py-4 rounded-xl text-xl tracking-wider transition uppercase shadow-lg">Download File</button>
+
+            <div id="statusWrapper" class="hidden space-y-2 pt-2">
+                <div class="flex justify-between text-sm font-bold text-[#c86bff]">
+                    <span id="statusLabel">Processing data...</span>
+                </div>
+                <div class="w-full grey-box h-4 rounded-full overflow-hidden relative">
+                    <div id="progressBar" class="bg-[#a020f0] h-full rounded-full transition-all duration-300 animate-pulse" style="width: 100%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="helpOverlay" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+        <div class="panel border-2 rounded-2xl max-w-md w-full p-6 text-center space-y-4">
+            <h3 class="text-2xl font-bold accent-glow">How to use Kronos Web</h3>
+            <p class="text-sm text-gray-300 leading-relaxed text-left space-y-1 block max-w-xs mx-auto">
+                1. Copy target media asset link URL.<br>
+                2. Paste path configuration into workspace.<br>
+                3. Choose dynamic video or audio preset target.<br>
+                4. Press Download and wait for extraction processing.
+            </p>
+            <div class="text-xs text-purple-400 font-semibold pt-2 border-t border-gray-800">Optimized for video production editors and After Effects compositions.</div>
+            <button onclick="toggleHelp(false)" class="btn-purple border px-6 py-2 rounded-xl text-sm font-bold tracking-wide uppercase transition">Close</button>
+        </div>
+    </div>
+
+    <script>
+        let selectedFormat = 'audio';
+
+        function setFormat(fmt) {
+            selectedFormat = fmt;
+            document.getElementById('audioBtn').style.borderColor = fmt === 'audio' ? '#c86bff' : 'transparent';
+            document.getElementById('videoBtn').style.borderColor = fmt === 'video' ? '#c86bff' : 'transparent';
+        }
+
+        function toggleHelp(show) {
+            document.getElementById('helpOverlay').classList.toggle('hidden', !show);
+        }
+
+        async function pasteClipboard() {
+            try {
+                const text = await navigator.clipboard.readText();
+                document.getElementById('urlInput').value = text;
+            } catch (err) {
+                alert("Browser blocked clipboard access. Please manually use Ctrl+V / Cmd+V.");
+            }
+        }
+
+        async function triggerDownload() {
+            const urlInput = document.getElementById('urlInput').value.trim();
+            if (!urlInput) return alert("Please specify a processing link address path.");
+
+            const dlBtn = document.getElementById('dlBtn');
+            const statusWrapper = document.getElementById('statusWrapper');
+            const progressBar = document.getElementById('progressBar');
+            const statusLabel = document.getElementById('statusLabel');
+
+            // Set Loading States
+            dlBtn.disabled = true;
+            dlBtn.style.opacity = 0.5;
+            statusWrapper.classList.remove('hidden');
+            progressBar.style.width = '100%';
+            statusLabel.innerText = "Extracting media & rendering production codec layers...";
+
+            try {
+                const response = await fetch('/download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: urlInput, format: selectedFormat })
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.error || "Execution processing sequence faulted.");
+                }
+
+                // Process successful file download blob response streams
+                const blob = await response.blob();
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const linkElement = document.createElement('a');
+                linkElement.href = downloadUrl;
+                linkElement.download = selectedFormat === 'audio' ? 'kronos_output.wav' : 'kronos_output.mov';
+                document.body.appendChild(linkElement);
+                linkElement.click();
+                linkElement.remove();
+
+                statusLabel.innerText = "Complete!";
+                setTimeout(() => statusWrapper.classList.add('hidden'), 3000);
+            } catch (error) {
+                alert("Processing Exception Encountered:\n" + error.message);
+                statusWrapper.classList.add('hidden');
+            } finally {
+                dlBtn.disabled = false;
+                dlBtn.style.opacity = 1;
+            }
+        }
+    </script>
+</body>
+</html>
